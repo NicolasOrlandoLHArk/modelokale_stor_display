@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="refresh" content="300" />
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/da.global.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/ical.js@1.5.0/build/ical.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/icalendar@6.1.11/index.global.min.js" defer></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #111;
+      color: #fff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #calendar {
+      height: 100%;
+    }
+
+    .fc .fc-toolbar-title {
+      color: #04b4ff;
+      font-weight: 700;
+    }
+
+    .fc .fc-button,
+    .fc .fc-button-primary {
+      background: #04b4ff;
+      border: 0;
+      box-shadow: none;
+    }
+
+    .fc .fc-button:hover,
+    .fc .fc-button-primary:hover {
+      background: #0299db;
+    }
+
+    .fc .fc-button:focus,
+    .fc .fc-button-primary:focus {
+      box-shadow: none !important;
+    }
+
+    .fc-event {
+      background: #04b4ff !important;
+      border: 0 !important;
+      border-radius: 4px;
+    }
+
+    .fc-daygrid-event > .fc-event-main-frame,
+    .fc-daygrid-event > .fc-event-main-frame * {
+      white-space: normal !important;
+      overflow-wrap: break-word !important;
+      word-break: break-word !important;
+      align-items: flex-start !important;
+    }
+
+    .fc-daygrid-event {
+      padding: 2px 4px !important;
+    }
+
+    #state-indicator {
+      position: fixed;
+      right: 12px;
+      bottom: 12px;
+      z-index: 9999;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.45);
+    }
+  </style>
+</head>
+<body data-room-state="unknown">
+  <div id="calendar"></div>
+  <div id="state-indicator">Status: Ukendt</div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const stateIndicatorEl = document.getElementById('state-indicator');
+      const calendarEl = document.getElementById('calendar');
+
+      function setRoomState(state) {
+        const normalized = ['busy', 'free', 'unknown'].includes(state) ? state : 'unknown';
+        document.body.dataset.roomState = normalized;
+
+        if (normalized === 'busy') {
+          stateIndicatorEl.textContent = 'Status: Optaget';
+        } else if (normalized === 'free') {
+          stateIndicatorEl.textContent = 'Status: Ledigt';
+        } else {
+          stateIndicatorEl.textContent = 'Status: Ukendt';
+        }
+
+        console.log('roomState =', normalized);
+      }
+
+      function isEventActiveNow(event, now) {
+        if (!event.start) return false;
+        const start = event.start;
+        const end = event.end || event.start;
+        return now >= start && now < end;
+      }
+
+      function updateRoomState() {
+        try {
+          const now = new Date();
+          const allEvents = calendar.getEvents();
+          const isBusy = allEvents.some(event => isEventActiveNow(event, now));
+          setRoomState(isBusy ? 'busy' : 'free');
+        } catch (e) {
+          console.error('Failed to compute room state', e);
+          setRoomState('unknown');
+        }
+      }
+
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        locale: 'da',
+        initialView: 'dayGridMonth',
+        headerToolbar: { left: 'title', right: 'prev,next today' },
+        nowIndicator: true,
+        displayEventEnd: true,
+        displayEventTime: true,
+        eventTimeFormat: { hour: '2-digit', minute: '2-digit', meridiem: false },
+
+        eventContent(arg) {
+          const container = document.createElement('div');
+          container.textContent = arg.timeText
+            ? `${arg.timeText} • ${arg.event.title}`
+            : arg.event.title;
+          return { domNodes: [container] };
+        },
+
+        events: {
+          url: 'https://modelokalelille.no-022.workers.dev',
+          format: 'ics'
+        },
+
+        loading(isLoading) {
+          if (!isLoading) updateRoomState();
+        },
+
+        eventsSet() {
+          updateRoomState();
+        }
+      });
+
+      calendar.render();
+      setTimeout(updateRoomState, 2000);
+      setInterval(updateRoomState, 60000);
+    });
+  </script>
+</body>
+</html>
